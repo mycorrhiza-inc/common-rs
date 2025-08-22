@@ -14,18 +14,51 @@ pub struct S3Location {
     pub region: String,
 }
 
-impl S3Location {
+#[derive(Debug, Clone)]
+pub struct S3LocationWithCredentials {
+    pub key: String,
+    pub bucket: String,
+    credentials: &'static S3Credentials,
+}
+
+impl From<S3LocationWithCredentials> for S3Location {
+    fn from(value: S3LocationWithCredentials) -> Self {
+        S3Location {
+            key: value.key,
+            bucket: value.bucket,
+            endpoint: value.credentials.endpoint.clone(),
+            region: value.credentials.cloud_region.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("Endpoint or region did not match")]
+pub struct MismatchedRegion {}
+impl S3LocationWithCredentials {
     pub fn from_key_bucket_and_credentials(
         key: &str,
         bucket: &str,
-        credentials: &S3Credentials,
+        credentials: &'static S3Credentials,
     ) -> Self {
-        S3Location {
+        S3LocationWithCredentials {
             key: key.to_string(),
             bucket: bucket.to_string(),
-            endpoint: credentials.endpoint.clone(),
-            region: credentials.cloud_region.clone(),
+            credentials,
         }
+    }
+    pub fn try_from_location_and_credentials(
+        loc: &S3Location,
+        credentials: &'static S3Credentials,
+    ) -> Result<Self, MismatchedRegion> {
+        if loc.endpoint == credentials.endpoint && loc.region == credentials.cloud_region {
+            return Ok(S3LocationWithCredentials {
+                key: loc.key.clone(),
+                bucket: loc.bucket.clone(),
+                credentials,
+            });
+        }
+        Err(MismatchedRegion {})
     }
 }
 // https://examplebucket.sfo3.digitaloceanspaces.com/this/is/the/file/key
@@ -42,6 +75,28 @@ impl fmt::Display for S3Location {
             .endpoint
             .strip_prefix("https://")
             .unwrap_or(&self.endpoint);
+
+        // make sure we don’t end up with duplicate or missing slashes
+        let key_part = self.key.trim_start_matches('/');
+
+        // build "https://{bucket}.{host_part}/{key…}"
+        let mut url = format!("https://{}.{}", self.bucket, host_part);
+        if !key_part.is_empty() {
+            url.push('/');
+            url.push_str(key_part);
+        }
+        write!(f, "{url}")
+    }
+}
+
+impl fmt::Display for S3LocationWithCredentials {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // strip off the "https://" prefix on the endpoint to get e.g. "sfo3.digitaloceanspaces.com"
+        let host_part = self
+            .credentials
+            .endpoint
+            .strip_prefix("https://")
+            .unwrap_or(&self.credentials.endpoint);
 
         // make sure we don’t end up with duplicate or missing slashes
         let key_part = self.key.trim_start_matches('/');

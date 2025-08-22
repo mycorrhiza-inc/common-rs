@@ -1,6 +1,7 @@
-use std::sync::LazyLock;
+use core::fmt;
+use std::{fmt::Debug, sync::LazyLock};
 
-use aws_config::{BehaviorVersion, Region};
+use aws_config::{BehaviorVersion, Region, imds::region};
 use aws_sdk_s3::{Client, config::Credentials};
 use tracing::info;
 
@@ -14,7 +15,28 @@ pub struct S3Credentials {
     secret_key: String,
 }
 
+impl Debug for S3Credentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("S3Credentials")
+            .field("cloud_region", &self.cloud_region)
+            .field("endpoint", &self.endpoint)
+            .field("access_key", &"***")
+            .field("secret_key", &"***")
+            .finish()
+    }
+}
+
+impl Eq for S3Credentials {}
+
+impl PartialEq for S3Credentials {
+    fn eq(&self, other: &Self) -> bool {
+        self.cloud_region == other.cloud_region && self.endpoint == other.endpoint
+    }
+}
 impl S3Credentials {
+    fn matches_endpoint_and_region(&self, endpoint: &str, region: &str) -> bool {
+        self.endpoint == endpoint && self.cloud_region == region
+    }
     pub async fn make_s3_client(&self) -> Client {
         info!("Creating S3 client");
         let creds = Credentials::new(

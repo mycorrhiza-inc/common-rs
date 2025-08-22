@@ -19,6 +19,85 @@ use rkyv::util::AlignedVec;
 #[cfg(feature = "rkyv")]
 use rkyv::{Archive, Serialize};
 
+use crate::s3_generic::S3Credentials;
+
+pub struct S3LocationWithClient<'a> {
+    pub s3_client: &'a S3Client,
+    pub bucket: &'a str,
+    pub key: &'a str,
+}
+
+impl<'a> S3LocationWithClient<'a> {
+    pub fn new(s3_client: &'a S3Client, bucket: &'a str, key: &'a str) -> Self {
+        S3LocationWithClient {
+            s3_client,
+            bucket,
+            key,
+        }
+    }
+    pub async fn download_json<T: serde::de::DeserializeOwned>(&self) -> anyhow::Result<T> {
+        download_s3_json(self.s3_client, self.bucket, self.key).await
+    }
+
+    pub async fn upload_json<T: serde::Serialize>(&self, obj: &T) -> anyhow::Result<()> {
+        upload_s3_json(self.s3_client, self.bucket, self.key, obj).await
+    }
+
+    #[cfg(feature = "rkyv")]
+    pub async fn download_rkyv<T>(&self) -> anyhow::Result<T>
+    where
+        T: Archive,
+        T::Archived: for<'b> CheckBytes<HighValidator<'b, rkyv::rancor::Error>>
+            + rkyv::Deserialize<T, Strategy<Pool, rkyv::rancor::Error>>,
+    {
+        download_s3_rkyv_deserialize(self.s3_client, self.bucket, self.key).await
+    }
+
+    #[cfg(feature = "rkyv")]
+    pub async fn upload_rkyv<T>(&self, obj: &T) -> anyhow::Result<()>
+    where
+        T: Archive
+            + for<'b> Serialize<HighSerializer<AlignedVec, ArenaHandle<'b>, rkyv::rancor::Error>>,
+    {
+        upload_s3_rkyv(self.s3_client, self.bucket, self.key, obj).await
+    }
+
+    pub async fn download_bytes(&self) -> anyhow::Result<Vec<u8>> {
+        download_s3_bytes(self.s3_client, self.bucket, self.key).await
+    }
+
+    pub async fn upload_bytes(&self, bytes: Vec<u8>) -> anyhow::Result<()> {
+        upload_s3_bytes(self.s3_client, self.bucket, self.key, bytes).await
+    }
+
+    pub async fn delete_file(&self) -> anyhow::Result<()> {
+        delete_s3_file(self.s3_client, self.bucket, self.key).await
+    }
+}
+
+pub struct PrefixLocationWithClient<'a> {
+    pub s3_client: &'a S3Client,
+    pub bucket: &'a str,
+    pub prefix: &'a str,
+}
+
+impl<'a> PrefixLocationWithClient<'a> {
+    pub fn new(s3_client: &'a S3Client, bucket: &'a str, prefix: &'a str) -> Self {
+        PrefixLocationWithClient {
+            s3_client,
+            bucket,
+            prefix,
+        }
+    }
+    pub async fn delete_all(&self) -> anyhow::Result<()> {
+        delete_all_with_prefix(self.s3_client, self.bucket, self.prefix).await
+    }
+
+    pub async fn match_all(&self) -> anyhow::Result<Vec<String>> {
+        match_all_with_prefix(self.s3_client, self.bucket, self.prefix).await
+    }
+}
+
 // Core function to download bytes from S3
 pub async fn download_s3_json<T: serde::de::DeserializeOwned>(
     s3_client: &S3Client,
@@ -203,4 +282,3 @@ pub async fn match_all_with_prefix(
     }
     Ok(prefix_names)
 }
-
