@@ -5,12 +5,13 @@ use aws_sdk_s3::{Client, config::Credentials};
 use tracing::info;
 
 pub mod fetchers_and_getters;
+pub mod s3_uri;
 
 pub struct S3Credentials {
     pub cloud_region: String,
     pub endpoint: String,
-    pub access_key: String,
-    pub secret_key: String,
+    access_key: String,
+    secret_key: String,
 }
 
 impl S3Credentials {
