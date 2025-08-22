@@ -19,15 +19,16 @@ use rkyv::util::AlignedVec;
 #[cfg(feature = "rkyv")]
 use rkyv::{Archive, Serialize};
 
-pub struct S3LocationWithClient<'a> {
+#[derive(Clone, Copy)]
+pub struct S3Addr<'a> {
     pub s3_client: &'a S3Client,
     pub bucket: &'a str,
     pub key: &'a str,
 }
 
-impl<'a> S3LocationWithClient<'a> {
+impl<'a> S3Addr<'a> {
     pub fn new(s3_client: &'a S3Client, bucket: &'a str, key: &'a str) -> Self {
-        S3LocationWithClient {
+        S3Addr {
             s3_client,
             bucket,
             key,
@@ -134,15 +135,16 @@ impl<'a> S3LocationWithClient<'a> {
     }
 }
 
-pub struct PrefixLocationWithClient<'a> {
+#[derive(Clone, Copy)]
+pub struct S3PrefixAddr<'a> {
     pub s3_client: &'a S3Client,
     pub bucket: &'a str,
     pub prefix: &'a str,
 }
 
-impl<'a> PrefixLocationWithClient<'a> {
+impl<'a> S3PrefixAddr<'a> {
     pub fn new(s3_client: &'a S3Client, bucket: &'a str, prefix: &'a str) -> Self {
-        PrefixLocationWithClient {
+        S3PrefixAddr {
             s3_client,
             bucket,
             prefix,
@@ -165,7 +167,7 @@ impl<'a> PrefixLocationWithClient<'a> {
             if let Some(objects) = response.contents {
                 for object in objects {
                     if let Some(key) = object.key {
-                        S3LocationWithClient::new(self.s3_client, self.bucket, &key)
+                        S3Addr::new(self.s3_client, self.bucket, &key)
                             .delete_file()
                             .await?;
                     }
@@ -179,7 +181,7 @@ impl<'a> PrefixLocationWithClient<'a> {
         Ok(())
     }
 
-    pub async fn match_all(&self) -> anyhow::Result<Vec<String>> {
+    pub async fn list_all(&self) -> anyhow::Result<Vec<String>> {
         let mut prefix_names = Vec::new();
 
         let mut stream = self
