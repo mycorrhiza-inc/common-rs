@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use aws_sdk_s3::{Client as S3Client, primitives::ByteStream};
+use std::borrow::Cow;
 use std::path::Path;
 use tracing::{debug, error, info};
 
@@ -135,19 +136,24 @@ impl<'a> S3Addr<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct S3PrefixAddr<'a> {
+#[derive(Clone)]
+pub struct S3DirectoryAddr<'a> {
     pub s3_client: &'a S3Client,
     pub bucket: &'a str,
-    pub prefix: &'a str,
+    pub prefix: Cow<'a, str>,
 }
 
-impl<'a> S3PrefixAddr<'a> {
+impl<'a> S3DirectoryAddr<'a> {
     pub fn new(s3_client: &'a S3Client, bucket: &'a str, prefix: &'a str) -> Self {
-        S3PrefixAddr {
+        let actual_prefix = if prefix.ends_with('/') {
+            Cow::Borrowed(prefix)
+        } else {
+            Cow::Owned(format!("{}/", prefix))
+        };
+        S3DirectoryAddr {
             s3_client,
             bucket,
-            prefix,
+            prefix: actual_prefix,
         }
     }
 
@@ -159,7 +165,7 @@ impl<'a> S3PrefixAddr<'a> {
                 .s3_client
                 .list_objects_v2()
                 .bucket(self.bucket)
-                .prefix(self.prefix);
+                .prefix(&*self.prefix);
             if let Some(token) = continuation_token {
                 list_request = list_request.continuation_token(token);
             }
@@ -188,23 +194,103 @@ impl<'a> S3PrefixAddr<'a> {
             .s3_client
             .list_objects_v2()
             .bucket(self.bucket)
-            .prefix(self.prefix)
+            .prefix(&*self.prefix)
             .into_paginator()
             .send();
 
         while let Some(result) = stream.next().await {
             for object in result?.contents() {
                 if let Some(key) = object.key() {
-                    info!(%key, "Found list attachment object");
-                    if key.ends_with(".json")
-                        && let Some(filename) = Path::new(key).file_name()
-                        && let Some(filestem) = filename.to_str()
-                    {
-                        prefix_names.push(filestem.to_string());
-                    }
+                    prefix_names.push(key.to_string());
                 }
             }
         }
         Ok(prefix_names)
+    }
+
+    /// Copy all files from this prefix to another prefix within the same bucket
+    pub async fn copy_all(&self, destination: S3DirectoryAddr<'_>) -> anyhow::Result<()> {
+        // Ensure prefixes end with '/' for proper path handling
+        let src_prefix = if self.prefix.ends_with('/') {
+            self.prefix.to_string()
+        } else {
+            format!("{}/", self.prefix)
+        };
+
+        let dest_prefix = if destination.prefix.ends_with('/') {
+            destination.prefix.to_string()
+        } else {
+            format!("{}/", destination.prefix)
+        };
+
+        info!(
+            src_bucket = %self.bucket,
+            src_prefix = %src_prefix,
+            dest_bucket = %destination.bucket,
+            dest_prefix = %dest_prefix,
+            "Copying files between S3 prefixes"
+        );
+
+        // List all objects in the source prefix
+        let mut stream = self
+            .s3_client
+            .list_objects_v2()
+            .bucket(self.bucket)
+            .prefix(&src_prefix)
+            .into_paginator()
+            .send();
+
+        let mut copy_count = 0;
+
+        while let Some(result) = stream.next().await {
+            let response = result?;
+
+            for object in response.contents() {
+                if let Some(source_key) = object.key() {
+                    // Calculate the relative path within the source prefix
+                    let relative_path = source_key.strip_prefix(&src_prefix).unwrap_or(source_key);
+
+                    // Construct the destination key
+                    let destination_key = format!("{}{}", dest_prefix, relative_path);
+
+                    debug!(
+                        src_key = %source_key,
+                        dest_key = %destination_key,
+                        "Copying object"
+                    );
+
+                    // Perform the copy operation
+                    self.s3_client
+                        .copy_object()
+                        .bucket(destination.bucket)
+                        .key(&destination_key)
+                        .copy_source(format!("{}/{}", self.bucket, source_key))
+                        .send()
+                        .await
+                        .map_err(|err| {
+                            error!(
+                                error = %err,
+                                src_key = %source_key,
+                                dest_key = %destination_key,
+                                "Failed to copy S3 object"
+                            );
+                            anyhow!(err)
+                        })?;
+
+                    copy_count += 1;
+                }
+            }
+        }
+
+        info!(
+            copied_objects = copy_count,
+            src_bucket = %self.bucket,
+            src_prefix = %src_prefix,
+            dest_bucket = %destination.bucket,
+            dest_prefix = %dest_prefix,
+            "Successfully copied files between S3 prefixes"
+        );
+
+        Ok(())
     }
 }
