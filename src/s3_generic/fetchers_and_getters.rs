@@ -1,19 +1,13 @@
 use anyhow::anyhow;
 use aws_sdk_s3::{Client as S3Client, primitives::ByteStream};
-use futures_util::join;
-use non_empty_string::non_empty_string;
 use rkyv::api::high::{HighSerializer, HighValidator};
 use rkyv::bytecheck::CheckBytes;
 use rkyv::de::Pool;
 use rkyv::rancor::Strategy;
-use rkyv::ser::allocator::{Arena, ArenaHandle};
-use rkyv::ser::sharing::Share;
+use rkyv::ser::allocator::ArenaHandle;
 use rkyv::util::AlignedVec;
 use rkyv::{Archive, Serialize};
-use std::convert::Infallible;
-use std::ops::Deref;
 use std::path::Path;
-use thiserror::Error;
 use tracing::{debug, error, info};
 
 // Core function to download bytes from S3

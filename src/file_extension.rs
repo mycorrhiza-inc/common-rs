@@ -19,7 +19,7 @@ macro_rules! static_extensions {
             }
 
             /// Case-sensitive comparison; returns `None` if no match.
-            pub fn from_str(s: &str) -> Option<Self> {
+            pub fn from_raw_str(s: &str) -> Option<Self> {
                 match s {
                     $($ext_str => Some(Self::$variant),)*
                     _ => None,
@@ -53,7 +53,7 @@ pub enum FileExtension {
 }
 
 impl FileExtension {
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         matches!(self, Self::Empty)
     }
     fn get_encoding(&self) -> FileEncoding {
@@ -90,7 +90,7 @@ impl FromStr for FileExtension {
         let Some(parsed) = intiial_fragment else {
             return Ok(Self::Empty);
         };
-        let static_opt = StaticExtension::from_str(&parsed).map(Self::Static);
+        let static_opt = StaticExtension::from_raw_str(&parsed).map(Self::Static);
         Ok(static_opt.unwrap_or_else(|| Self::Unknown(s.to_owned())))
     }
 }
