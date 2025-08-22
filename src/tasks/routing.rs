@@ -1,3 +1,4 @@
+#[cfg(feature = "aide")]
 use aide::{
     axum::{
         ApiRouter, IntoApiResponse,
@@ -5,6 +6,7 @@ use aide::{
     },
     transform::TransformOperation,
 };
+#[cfg(feature = "axum")]
 use axum::{Json, extract::Path, response::IntoResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -20,6 +22,8 @@ pub const CHECK_TASK_URL_LEAF: &str = "/tasks";
 pub struct TaskIDNumber {
     task_id: u64,
 }
+
+#[cfg(feature = "axum")]
 pub async fn check_task_status(
     Path(TaskIDNumber { task_id }): Path<TaskIDNumber>,
 ) -> impl IntoApiResponse {
@@ -35,6 +39,7 @@ pub async fn check_task_status(
     }
 }
 
+#[cfg(feature = "aide")]
 pub fn check_task_status_docs(op: TransformOperation) -> TransformOperation {
     op.description("Fetch attachment data from S3.")
         .response::<200, Json<TaskStatusDisplay>>()
@@ -43,6 +48,7 @@ pub fn check_task_status_docs(op: TransformOperation) -> TransformOperation {
         })
 }
 
+#[cfg(feature = "aide")]
 pub fn define_generic_task_routes(router: ApiRouter) -> ApiRouter {
     let check_path = CHECK_TASK_URL_LEAF.to_string() + "/{task_id}";
     router.api_route(
@@ -63,6 +69,7 @@ pub struct GeneralExtractor<T: JsonSchema + ExecuteUserTask> {
     pub object: T,
 }
 
+#[cfg(feature = "axum")]
 pub async fn handle_generic_task_route<
     T: for<'de> Deserialize<'de> + JsonSchema + ExecuteUserTask,
 >(
@@ -75,6 +82,7 @@ pub async fn handle_generic_task_route<
     Json(taskinfo.into())
 }
 
+#[cfg(feature = "aide")]
 pub fn declare_task_route<T: for<'de> Deserialize<'de> + JsonSchema + ExecuteUserTask>(
     router: ApiRouter,
 ) -> ApiRouter {

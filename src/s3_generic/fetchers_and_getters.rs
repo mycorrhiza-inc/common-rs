@@ -1,14 +1,23 @@
 use anyhow::anyhow;
 use aws_sdk_s3::{Client as S3Client, primitives::ByteStream};
-use rkyv::api::high::{HighSerializer, HighValidator};
-use rkyv::bytecheck::CheckBytes;
-use rkyv::de::Pool;
-use rkyv::rancor::Strategy;
-use rkyv::ser::allocator::ArenaHandle;
-use rkyv::util::AlignedVec;
-use rkyv::{Archive, Serialize};
 use std::path::Path;
 use tracing::{debug, error, info};
+
+// Conditional imports for rkyv
+#[cfg(feature = "rkyv")]
+use rkyv::api::high::{HighSerializer, HighValidator};
+#[cfg(feature = "rkyv")]
+use rkyv::bytecheck::CheckBytes;
+#[cfg(feature = "rkyv")]
+use rkyv::de::Pool;
+#[cfg(feature = "rkyv")]
+use rkyv::rancor::Strategy;
+#[cfg(feature = "rkyv")]
+use rkyv::ser::allocator::ArenaHandle;
+#[cfg(feature = "rkyv")]
+use rkyv::util::AlignedVec;
+#[cfg(feature = "rkyv")]
+use rkyv::{Archive, Serialize};
 
 // Core function to download bytes from S3
 pub async fn download_s3_json<T: serde::de::DeserializeOwned>(
@@ -31,6 +40,7 @@ pub async fn upload_s3_json<T: serde::Serialize>(
     upload_s3_bytes(s3_client, bucket, key, obj_json_bytes).await
 }
 
+#[cfg(feature = "rkyv")]
 pub async fn upload_s3_rkyv<T>(
     s3_client: &S3Client,
     bucket: &str,
@@ -45,6 +55,7 @@ where
     upload_s3_bytes(s3_client, bucket, key, bytes.to_vec()).await
 }
 
+#[cfg(feature = "rkyv")]
 pub async fn download_s3_rkyv_deserialize<T>(
     s3_client: &S3Client,
     bucket: &str,
@@ -59,6 +70,7 @@ where
     let value = rkyv::from_bytes(&bytes)?;
     Ok(value)
 }
+
 pub async fn download_s3_bytes(
     s3_client: &S3Client,
     bucket: &str,

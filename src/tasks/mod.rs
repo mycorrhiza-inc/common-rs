@@ -1,3 +1,4 @@
+#[cfg(feature = "async-trait")]
 use async_trait::async_trait;
 use routing::CHECK_TASK_URL_LEAF;
 use schemars::JsonSchema;
@@ -14,6 +15,7 @@ pub fn display_error_as_json(err: &impl std::error::Error) -> serde_json::Value 
     })
 }
 
+#[cfg(feature = "async-trait")]
 #[async_trait]
 pub trait ExecuteUserTask: 'static + Send {
     async fn execute_task(self: Box<Self>) -> Result<Value, Value>;

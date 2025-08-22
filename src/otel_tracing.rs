@@ -1,12 +1,16 @@
 use std::env;
 
+#[cfg(feature = "aide")]
 use aide::axum::ApiRouter;
+#[cfg(feature = "otel")]
 use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
+#[cfg(feature = "otel")]
 use init_tracing_opentelemetry::{
     otlp::OtelGuard, tracing_subscriber_ext::init_subscribers_and_loglevel,
 };
 use tracing::info;
 
+#[cfg(feature = "otel")]
 pub fn initialize_tracing_and_wrap_router(
     make_api: impl FnOnce() -> ApiRouter,
 ) -> anyhow::Result<(ApiRouter, OtelGuard)> {
