@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use aws_sdk_s3::{Client as S3Client, primitives::ByteStream};
+use futures_util::{StreamExt, stream};
 use std::borrow::Cow;
 use std::path::Path;
 use tracing::{debug, error, info};
@@ -209,19 +210,11 @@ impl<'a> S3DirectoryAddr<'a> {
     }
 
     /// Copy all files from this prefix to another prefix within the same bucket
-    pub async fn copy_all(&self, destination: S3DirectoryAddr<'_>) -> anyhow::Result<()> {
+    pub async fn copy_into(&self, destination: &S3DirectoryAddr<'_>) -> anyhow::Result<()> {
         // Ensure prefixes end with '/' for proper path handling
-        let src_prefix = if self.prefix.ends_with('/') {
-            self.prefix.to_string()
-        } else {
-            format!("{}/", self.prefix)
-        };
+        let src_prefix = &self.prefix;
 
-        let dest_prefix = if destination.prefix.ends_with('/') {
-            destination.prefix.to_string()
-        } else {
-            format!("{}/", destination.prefix)
-        };
+        let dest_prefix = &destination.prefix;
 
         info!(
             src_bucket = %self.bucket,
@@ -230,60 +223,40 @@ impl<'a> S3DirectoryAddr<'a> {
             dest_prefix = %dest_prefix,
             "Copying files between S3 prefixes"
         );
+        let file_list = self.list_all().await?;
 
-        // List all objects in the source prefix
-        let mut stream = self
-            .s3_client
-            .list_objects_v2()
-            .bucket(self.bucket)
-            .prefix(&src_prefix)
-            .into_paginator()
-            .send();
+        let async_file_copy = async |source_key: &str| {
+            // List all objects in the source prefix
+            // Calculate the relative path within the source prefix
+            let relative_path = source_key.strip_prefix(&**src_prefix).unwrap_or(source_key);
 
-        let mut copy_count = 0;
+            // Construct the destination key
+            let destination_key = format!("{}{}", dest_prefix, relative_path);
 
-        while let Some(result) = stream.next().await {
-            let response = result?;
+            debug!(
+                src_key = %source_key,
+                dest_key = %destination_key,
+                "Copying object"
+            );
 
-            for object in response.contents() {
-                if let Some(source_key) = object.key() {
-                    // Calculate the relative path within the source prefix
-                    let relative_path = source_key.strip_prefix(&src_prefix).unwrap_or(source_key);
-
-                    // Construct the destination key
-                    let destination_key = format!("{}{}", dest_prefix, relative_path);
-
-                    debug!(
-                        src_key = %source_key,
-                        dest_key = %destination_key,
-                        "Copying object"
-                    );
-
-                    // Perform the copy operation
-                    self.s3_client
-                        .copy_object()
-                        .bucket(destination.bucket)
-                        .key(&destination_key)
-                        .copy_source(format!("{}/{}", self.bucket, source_key))
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            error!(
-                                error = %err,
-                                src_key = %source_key,
-                                dest_key = %destination_key,
-                                "Failed to copy S3 object"
-                            );
-                            anyhow!(err)
-                        })?;
-
-                    copy_count += 1;
-                }
-            }
-        }
+            // Perform the copy operation
+            let _copy_res = self
+                .s3_client
+                .copy_object()
+                .bucket(destination.bucket)
+                .key(&destination_key)
+                .copy_source(format!("{}/{}", self.bucket, source_key))
+                .send()
+                .await;
+        };
+        let file_count = stream::iter(file_list.iter())
+            .map(|x| async_file_copy(x))
+            .buffer_unordered(5)
+            .count()
+            .await;
 
         info!(
-            copied_objects = copy_count,
+            %file_count,
             src_bucket = %self.bucket,
             src_prefix = %src_prefix,
             dest_bucket = %destination.bucket,
