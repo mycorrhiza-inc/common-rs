@@ -44,7 +44,11 @@ impl<'a> S3Addr<'a> {
     }
 
     pub async fn upload_json<T: serde::Serialize>(&self, obj: &T) -> anyhow::Result<()> {
-        let obj_json_bytes = serde_json::to_vec(obj)?;
+        // This is pretty printed just to make it much more readable while debugging objects at the
+        // cost of making serialization slower. If this ever becomes a performance bottleneck,
+        // switch over to rkyv which should be way way faster than non pretty printed json.
+        let obj_json_pretty_string = serde_json::to_string_pretty(obj)?;
+        let obj_json_bytes = obj_json_pretty_string.into();
         self.upload_bytes(obj_json_bytes).await
     }
 
@@ -225,32 +229,30 @@ impl<'a> S3DirectoryAddr<'a> {
         );
         let file_list = self.list_all().await?;
 
-        let async_file_copy = async |source_key: &str| {
-            // List all objects in the source prefix
-            // Calculate the relative path within the source prefix
-            let relative_path = source_key.strip_prefix(&**src_prefix).unwrap_or(source_key);
+        let file_count = stream::iter(file_list)
+            .map(|source_key| {
+                let s3_client = self.s3_client.clone();
+                let bucket = self.bucket.to_string();
+                let dest_bucket = destination.bucket.to_string();
+                let dest_prefix = destination.prefix.to_string();
+                let src_prefix = self.prefix.to_string();
 
-            // Construct the destination key
-            let destination_key = format!("{}{}", dest_prefix, relative_path);
+                async move {
+                    let relative_path = source_key.strip_prefix(&src_prefix).unwrap_or(&source_key);
+                    let destination_key = format!("{}{}", dest_prefix, relative_path);
 
-            debug!(
-                src_key = %source_key,
-                dest_key = %destination_key,
-                "Copying object"
-            );
+                    debug!(src_key = %source_key, dest_key = %destination_key, "Copying object");
 
-            // Perform the copy operation
-            let _copy_res = self
-                .s3_client
-                .copy_object()
-                .bucket(destination.bucket)
-                .key(&destination_key)
-                .copy_source(format!("{}/{}", self.bucket, source_key))
-                .send()
-                .await;
-        };
-        let file_count = stream::iter(file_list.iter())
-            .map(|x| async_file_copy(x))
+                    // Perform the copy operation
+                    let _copy_res = s3_client
+                        .copy_object()
+                        .bucket(dest_bucket)
+                        .key(&destination_key)
+                        .copy_source(format!("{}/{}", bucket, source_key))
+                        .send()
+                        .await;
+                }
+            })
             .buffer_unordered(5)
             .count()
             .await;
