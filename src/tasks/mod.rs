@@ -6,12 +6,18 @@ use serde_json::{Value, json};
 pub mod routing;
 pub mod workers;
 
-pub fn display_error_as_json(err: &impl std::error::Error) -> serde_json::Value {
+pub fn display_error_as_json<E: std::fmt::Display + std::fmt::Debug>(err: &E) -> serde_json::Value {
     json!({
         "error_string":err.to_string(),
         "error_debug": format!("{:?}", err),
         "error_type": std::any::type_name_of_val(err)
     })
+}
+
+pub fn map_err_as_json<T, E: std::fmt::Display + std::fmt::Debug>(
+    res: Result<T, E>,
+) -> Result<T, serde_json::Value> {
+    res.map_err(|err| display_error_as_json(&err))
 }
 
 #[async_trait]

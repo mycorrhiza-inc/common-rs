@@ -251,9 +251,10 @@ impl<'a> S3DirectoryAddr<'a> {
                         .copy_source(format!("{}/{}", bucket, source_key))
                         .send()
                         .await;
+                    info!(%destination_key,"Successfully copied file")
                 }
             })
-            .buffer_unordered(5)
+            .buffer_unordered(25)
             .count()
             .await;
 
