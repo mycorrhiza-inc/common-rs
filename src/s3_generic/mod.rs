@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{fmt::Debug, sync::LazyLock};
 
-use aws_config::{BehaviorVersion, Region, imds::region};
+use aws_config::{BehaviorVersion, Region};
 use aws_sdk_s3::{Client, config::Credentials};
 use tracing::info;
 

@@ -2,7 +2,6 @@ use anyhow::anyhow;
 use aws_sdk_s3::{Client as S3Client, primitives::ByteStream};
 use futures_util::{StreamExt, stream};
 use std::borrow::Cow;
-use std::path::Path;
 use tracing::{debug, error, info};
 
 // Conditional imports for rkyv
