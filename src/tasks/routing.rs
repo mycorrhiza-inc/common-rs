@@ -102,3 +102,12 @@ pub fn declare_task_route<T: for<'de> Deserialize<'de> + JsonSchema + ExecuteUse
         post(handle_generic_task_route::<T>),
     )
 }
+#[cfg(feature = "aide")]
+pub fn declare_default_task_route<T: for<'de> Deserialize<'de> + JsonSchema + ExecuteUserTask>(
+    router: ApiRouter,
+) -> ApiRouter {
+    router.api_route(
+        &format!("/tasks/types/{}", T::get_task_label_static()),
+        post(handle_default_task_route::<T>),
+    )
+}
