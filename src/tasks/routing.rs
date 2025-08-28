@@ -82,6 +82,17 @@ pub async fn handle_generic_task_route<
     Json(taskinfo.into())
 }
 
+#[cfg(feature = "axum")]
+pub async fn handle_default_task_route<T: ExecuteUserTask + Default>(
+    Json(extractor): Json<PriorityExtractor>,
+) -> Json<TaskStatusDisplay> {
+    const WAIT_DURATION: Duration = Duration::from_secs(2);
+    let obj = T::default();
+    let priority = extractor.priority.unwrap_or(0);
+    let taskinfo = add_task_to_queue_and_wait_to_see_if_done(obj, priority, WAIT_DURATION).await;
+    Json(taskinfo.into())
+}
+
 #[cfg(feature = "aide")]
 pub fn declare_task_route<T: for<'de> Deserialize<'de> + JsonSchema + ExecuteUserTask>(
     router: ApiRouter,
