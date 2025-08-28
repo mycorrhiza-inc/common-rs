@@ -59,13 +59,14 @@ pub fn define_generic_task_routes(router: ApiRouter) -> ApiRouter {
 
 #[derive(Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]
 pub struct PriorityExtractor {
+    #[serde(default)]
     pub priority: i32,
 }
 
 #[derive(Deserialize, JsonSchema)]
 pub struct GeneralExtractor<T: JsonSchema + ExecuteUserTask> {
     #[serde(default)]
-    pub priority: Option<i32>,
+    pub priority: i32,
     pub object: T,
 }
 
@@ -77,7 +78,7 @@ pub async fn handle_generic_task_route<
 ) -> Json<TaskStatusDisplay> {
     const WAIT_DURATION: Duration = Duration::from_secs(2);
     let obj = extractor.object;
-    let priority = extractor.priority.unwrap_or(0);
+    let priority = extractor.priority;
     let taskinfo = add_task_to_queue_and_wait_to_see_if_done(obj, priority, WAIT_DURATION).await;
     Json(taskinfo.into())
 }
@@ -88,7 +89,7 @@ pub async fn handle_default_task_route<T: ExecuteUserTask + Default>(
 ) -> Json<TaskStatusDisplay> {
     const WAIT_DURATION: Duration = Duration::from_secs(2);
     let obj = T::default();
-    let priority = extractor.priority.unwrap_or(0);
+    let priority = extractor.priority;
     let taskinfo = add_task_to_queue_and_wait_to_see_if_done(obj, priority, WAIT_DURATION).await;
     Json(taskinfo.into())
 }
@@ -103,9 +104,7 @@ pub fn declare_task_route<T: for<'de> Deserialize<'de> + JsonSchema + ExecuteUse
     )
 }
 #[cfg(feature = "aide")]
-pub fn declare_default_task_route<T: for<'de> Deserialize<'de> + JsonSchema + ExecuteUserTask>(
-    router: ApiRouter,
-) -> ApiRouter {
+pub fn declare_default_task_route<T: ExecuteUserTask + Default>(router: ApiRouter) -> ApiRouter {
     router.api_route(
         &format!("/tasks/types/{}", T::get_task_label_static()),
         post(handle_default_task_route::<T>),
