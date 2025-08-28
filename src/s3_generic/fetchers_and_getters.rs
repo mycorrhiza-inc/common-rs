@@ -1,4 +1,6 @@
 use anyhow::anyhow;
+use aws_sdk_s3::error::SdkError;
+use aws_sdk_s3::operation::get_object::GetObjectError;
 use aws_sdk_s3::{Client as S3Client, primitives::ByteStream};
 use futures_util::{StreamExt, stream};
 use std::borrow::Cow;
@@ -78,13 +80,32 @@ impl<'a> S3Addr<'a> {
         let output = self
             .s3_client
             .get_object()
-            .bucket(self.bucket)
-            .key(self.key)
+            .bucket(&self.bucket)
+            .key(&self.key)
             .send()
             .await
             .map_err(|e| {
-                let err_dbg = format!("{:?}",e);
-                error!(error = %e, error_debug = &err_dbg[..500],%self.bucket, %self.key,"Failed to download S3 object");
+                // Match on SDK error to see if it's "NoSuchKey"
+                if let SdkError::ServiceError(err) = &e {
+                    if matches!(err, GetObjectError::NoSuchKey(_)) {
+                        debug!(
+                            error = %e,
+                            bucket = %self.bucket,
+                            key = %self.key,
+                            "S3 object not found (NoSuchKey)"
+                        );
+                        return e; // still return the error, just not as high-level
+                    }
+                }
+
+                let err_dbg = format!("{:?}", e);
+                error!(
+                    error = %e,
+                    error_debug = &err_dbg[..err_dbg.len().min(500)],
+                    bucket = %self.bucket,
+                    key = %self.key,
+                    "Failed to download S3 object"
+                );
                 e
             })?;
 

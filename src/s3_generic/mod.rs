@@ -38,7 +38,7 @@ impl S3Credentials {
         self.endpoint == endpoint && self.cloud_region == region
     }
     pub async fn make_s3_client(&self) -> Client {
-        info!("Creating S3 client");
+        // info!("Creating S3 client");
         let creds = Credentials::new(
             &self.access_key,
             &self.secret_key,

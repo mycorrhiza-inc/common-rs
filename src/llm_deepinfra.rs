@@ -8,8 +8,8 @@ use crate::misc::fmap_empty;
 pub static DEEPINFRA_API_KEY: LazyLock<String> =
     LazyLock::new(|| env::var("DEEPINFRA_API_KEY").expect("Expected DEEPINFRA_API_KEY"));
 
-pub const FAST_CHEAP_MODEL_NAME: &str = "meta-llama/Llama-4-Maverick-17B-128E-Instruct-Turbo";
-pub const REASONING_MODEL_NAME: &str = "meta-llama/Meta-Llama-3-70B-Instruct";
+pub const FAST_CHEAP_MODEL_NAME: &str = "Qwen/Qwen3-32B";
+pub const REASONING_MODEL_NAME: &str = "openai/gpt-oss-120b";
 
 #[derive(Debug, thiserror::Error)]
 pub enum DeepInfraError {
