@@ -83,7 +83,8 @@ impl<'a> S3Addr<'a> {
             .send()
             .await
             .map_err(|e| {
-                error!(error = %e, %self.bucket, %self.key,"Failed to download S3 object");
+                let err_dbg = format!("{:?}",e);
+                error!(error = %e, error_debug = &err_dbg[..500],%self.bucket, %self.key,"Failed to download S3 object");
                 e
             })?;
 
