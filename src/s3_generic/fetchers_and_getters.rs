@@ -80,22 +80,22 @@ impl<'a> S3Addr<'a> {
         let output = self
             .s3_client
             .get_object()
-            .bucket(&self.bucket)
-            .key(&self.key)
+            .bucket(self.bucket)
+            .key(self.key)
             .send()
             .await
             .map_err(|e| {
                 // Match on SDK error to see if it's "NoSuchKey"
-                if let SdkError::ServiceError(err) = &e {
-                    if matches!(err, GetObjectError::NoSuchKey(_)) {
-                        debug!(
-                            error = %e,
-                            bucket = %self.bucket,
-                            key = %self.key,
-                            "S3 object not found (NoSuchKey)"
-                        );
-                        return e; // still return the error, just not as high-level
-                    }
+                if let SdkError::ServiceError(err) = &e
+                    && matches!(err.err(), GetObjectError::NoSuchKey(_))
+                {
+                    debug!(
+                        error = %e,
+                        bucket = %self.bucket,
+                        key = %self.key,
+                        "S3 object not found (NoSuchKey)"
+                    );
+                    return e; // still return the error, just not as high-level
                 }
 
                 let err_dbg = format!("{:?}", e);
