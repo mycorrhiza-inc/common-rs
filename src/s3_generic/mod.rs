@@ -3,8 +3,8 @@ use std::{fmt::Debug, sync::LazyLock};
 
 use aws_config::{BehaviorVersion, Region};
 use aws_sdk_s3::{Client, config::Credentials};
-use tracing::info;
 
+pub mod cannonical_location;
 pub mod fetchers_and_getters;
 pub mod s3_uri;
 
