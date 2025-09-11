@@ -2,23 +2,16 @@ use thiserror::Error;
 use tokio::net::TcpListener;
 use tracing::info;
 
-#[cfg(feature = "aide")]
 use aide::{
     axum::{ApiRouter, IntoApiResponse},
     openapi::{Info, OpenApi},
 };
-#[cfg(feature = "axum")]
 use axum::response::IntoResponse;
 
 use std::{convert::Infallible, sync::OnceLock};
 
-#[cfg(feature = "aide")]
 use aide::{axum::routing::get, swagger::Swagger};
-
-#[cfg(feature = "aide")]
 static PRESERIALIZED_API_STRING: OnceLock<String> = OnceLock::new();
-
-#[cfg(feature = "aide")]
 pub async fn serve_api() -> impl IntoApiResponse {
     // First, check if we have a cached serialized version
     if let Some(cached_json) = PRESERIALIZED_API_STRING.get() {
@@ -42,7 +35,6 @@ pub enum ApiServeError {
     ServerExitEarly,
 }
 
-#[cfg(feature = "aide")]
 pub async fn generate_api_docs_and_serve(
     listener: TcpListener,
     app: ApiRouter,

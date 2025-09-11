@@ -1,6 +1,7 @@
 use anyhow::anyhow;
 use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::operation::get_object::GetObjectError;
+use aws_sdk_s3::types::ObjectCannedAcl;
 use aws_sdk_s3::{Client as S3Client, primitives::ByteStream};
 use futures_util::{StreamExt, stream};
 use std::borrow::Cow;
@@ -135,6 +136,7 @@ impl<'a> S3Addr<'a> {
             .bucket(self.bucket)
             .key(self.key)
             .body(ByteStream::from(bytes))
+            .acl(ObjectCannedAcl::PublicRead) // 👈 make object public
             .send()
             .await
             .map_err(|err| {
