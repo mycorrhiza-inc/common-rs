@@ -1,3 +1,11 @@
+# Common
+
+Mycorrhiza's common rust library, it mostly just contains basic utilities for a couple of common annoying things.
+
+- Automatic setup for API documentation using aide and axum.
+- A Task Queue for running long tasks.
+- A wrapper around aws-sdk-s3 for fetching and processing s3 files.
+
 # Features
 
 This crate provides several optional features that can be enabled based on your needs:
@@ -20,13 +28,16 @@ By default, no features are enabled. You must explicitly enable the features you
 ## Examples
 
 To enable all features:
+
 ```toml
 [dependencies]
 common-rs = { path = "../common-rs", features = ["all"] }
 ```
 
 To enable specific features:
+
 ```toml
 [dependencies]
 common-rs = { path = "../common-rs", features = ["s3", "aide", "llm"] }
 ```
+

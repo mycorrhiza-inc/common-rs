@@ -12,7 +12,7 @@ use thiserror::Error;
 use schemars::{JsonSchema, Schema, json_schema};
 
 /// Represents a base64 URL-encoded BLAKE2b-256 hash
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Blake2bHash([u8; 32]);
 
 impl Blake2bHash {
